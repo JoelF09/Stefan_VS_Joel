@@ -96,6 +96,28 @@ h1 .stefan{color:var(--red)}
 .btn-add:hover{transform:translateY(-1px);box-shadow:0 4px 18px rgba(39,209,138,.35)}
 .btn-add:active{transform:translateY(0)}
 
+.header-actions{display:flex;align-items:center;gap:10px}
+.btn-auth{
+  font-family:var(--display);
+  font-size:12px;
+  font-weight:600;
+  letter-spacing:.08em;
+  text-transform:uppercase;
+  color:var(--text-dim);
+  background:none;
+  border:1px solid var(--border);
+  border-radius:8px;
+  padding:10px 14px;
+  cursor:pointer;
+  transition:color .15s,border-color .15s;
+}
+.btn-auth:hover{color:var(--text);border-color:var(--text-dim)}
+
+/* Bearbeiten-Steuerung nur für eingeloggte Admins zeigen */
+body:not(.admin) #addBtn,
+body:not(.admin) .edit-btn,
+body:not(.admin) .del-btn{display:none!important}
+
 /* ---------- Stat-Karten ---------- */
 .stats{
   display:grid;
@@ -364,10 +386,13 @@ tbody tr:hover .del-btn{opacity:.7}
       <p class="eyebrow">ACC · Hotlap-Vergleich</p>
       <h1><span class="joel">Joel</span><span class="vs">vs</span><span class="stefan">Stefan</span></h1>
     </div>
-    <button class="btn-add" id="addBtn">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
-      Strecke hinzufügen
-    </button>
+    <div class="header-actions">
+      <button class="btn-add" id="addBtn">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+        Strecke hinzufügen
+      </button>
+      <button class="btn-auth" id="authBtn">Login</button>
+    </div>
   </header>
 
   <div class="stats" id="stats"></div>
@@ -422,28 +447,47 @@ tbody tr:hover .del-btn{opacity:.7}
   </div>
 </div>
 
+<!-- Login-Modal -->
+<div class="modal-bg" id="loginBg">
+  <div class="modal">
+    <h2>Admin-Login</h2>
+    <label>E-Mail</label>
+    <input id="inEmail" type="email" autocomplete="username" placeholder="admin@beispiel.com">
+    <label>Passwort</label>
+    <input id="inPass" type="password" autocomplete="current-password" placeholder="••••••••">
+    <p class="error" id="loginError">Login fehlgeschlagen. Bitte E-Mail und Passwort prüfen.</p>
+    <div class="actions">
+      <button id="loginCancel">Abbrechen</button>
+      <button class="save" id="loginSubmit">Einloggen</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
-let data = [
-["Barcelona","1:48.680","1:48.802"],
-["Brands Hatch","1:27.707","1:28.380"],
-["Hungaroring","1:49.990","1:51.250"],
-["Misano","1:38.650","1:38.512"],
-["Monza","1:52.262","1:51.852"],
-["Nürburgring","1:58.810","1:59.017"],
-["Paul Ricard","1:59.570","2:00.865"],
-["Silverstone","2:05.860","2:07.842"],
-["Spa-Francorchamps","2:22.142","2:24.057"],
-["Valencia","1:36.155","1:39.425"],
-["Zandvoort","1:42.845","1:43.117"],
-["Zolder","1:34.027","1:34.900"],
-["24H Nürburgring","8:38.675","8:28.183"],
-["Mount Panorama","2:06.660","2:05.607"],
-["Laguna Seca","1:26.335","1:25.802"],
-["Suzuka","2:07.587","2:08.167"],
-["Kalami","1:48.157","1:49.217"]
-];
+// ====== Supabase-Konfiguration (Werte aus Settings → API → Project URL / anon public) ======
+const SUPABASE_URL = "https://wanwifpdjnvyikgcrksu.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_iXLIG4Zue9BOlYPgM9uKYw_IXeKAY07";
+// Eigenes Schema "racing" – komplett unabhängig von der Lego-DB in "public"
+const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { db: { schema: "racing" } });
+
+// Wird aus Supabase geladen: [{ id, track, joel_time, stefan_time, sort_order }, ...]
+let data = [];
 
 let selected = -1;
+let isAdmin = false;  // true, sobald der Admin eingeloggt ist
+
+async function load(){
+  const { data: rows, error } = await sb
+    .from("lap_times")
+    .select("*")
+    .order("sort_order", { ascending: true })
+    .order("created_at", { ascending: true });
+  if(error){ console.error(error); alert("Konnte Zeiten nicht laden:\n" + error.message); return; }
+  data = rows;
+  if(selected >= data.length) selected = -1;
+  render();
+}
 
 const TIME_RE = /^(\d+):([0-5]\d\.\d{1,3})$/;
 function toSec(t){ const p = t.split(":"); return parseInt(p[0])*60 + parseFloat(p[1]); }
@@ -459,10 +503,10 @@ function render(){
   // Stats
   let joelWins = 0, stefanWins = 0, maxGap = 0, maxTrack = "–";
   data.forEach(r=>{
-    const j = toSec(r[1]), s = toSec(r[2]);
+    const j = toSec(r.joel_time), s = toSec(r.stefan_time);
     if(j < s) joelWins++; else if(s < j) stefanWins++;
     const d = Math.abs(j - s);
-    if(d > maxGap){ maxGap = d; maxTrack = r[0]; }
+    if(d > maxGap){ maxGap = d; maxTrack = r.track; }
   });
   statsEl.innerHTML = `
     <div class="stat joel"><p class="label">Schnellere Strecken – Joel</p><p class="value">${joelWins}</p></div>
@@ -472,14 +516,14 @@ function render(){
   // Tabelle
   tb.innerHTML = "";
   data.forEach((r, i)=>{
-    const j = toSec(r[1]), s = toSec(r[2]);
+    const j = toSec(r.joel_time), s = toSec(r.stefan_time);
     const joelWins = j < s;
     const tr = document.createElement("tr");
     if(i === selected) tr.classList.add("selected");
     tr.innerHTML = `
-      <td>${r[0]}</td>
-      <td><span class="time-cell"><span class="time ${joelWins?"win":""}">${r[1]}</span><button class="edit-btn" data-i="${i}" data-c="1" title="Zeit bearbeiten">${pencilSVG}</button></span></td>
-      <td><span class="time-cell"><span class="time ${!joelWins?"win":""}">${r[2]}</span><button class="edit-btn" data-i="${i}" data-c="2" title="Zeit bearbeiten">${pencilSVG}</button></span></td>
+      <td>${r.track}</td>
+      <td><span class="time-cell"><span class="time ${joelWins?"win":""}">${r.joel_time}</span><button class="edit-btn" data-i="${i}" data-c="joel_time" title="Zeit bearbeiten">${pencilSVG}</button></span></td>
+      <td><span class="time-cell"><span class="time ${!joelWins?"win":""}">${r.stefan_time}</span><button class="edit-btn" data-i="${i}" data-c="stefan_time" title="Zeit bearbeiten">${pencilSVG}</button></span></td>
       <td class="diff-cell"><span class="diff-wrap">${fmtDiff(Math.abs(j-s))}<button class="del-btn" data-i="${i}" title="Strecke löschen">${trashSVG}</button></span></td>`;
     tr.addEventListener("click", e=>{
       if(e.target.closest(".edit-btn") || e.target.closest(".edit-input") || e.target.closest(".del-btn")) return;
@@ -491,7 +535,7 @@ function render(){
   tb.querySelectorAll(".edit-btn").forEach(btn=>{
     btn.addEventListener("click", e=>{
       e.stopPropagation();
-      startEdit(parseInt(btn.dataset.i), parseInt(btn.dataset.c), btn);
+      startEdit(parseInt(btn.dataset.i), btn.dataset.c, btn);
     });
   });
 
@@ -505,8 +549,11 @@ function render(){
   if(selected >= 0) showDetail(selected);
 }
 
-function deleteRow(i){
-  if(!confirm(`Strecke "${data[i][0]}" wirklich löschen?`)) return;
+async function deleteRow(i){
+  const row = data[i];
+  if(!confirm(`Strecke "${row.track}" wirklich löschen?`)) return;
+  const { error } = await sb.from("lap_times").delete().eq("id", row.id);
+  if(error){ alert("Löschen fehlgeschlagen:\n" + error.message); return; }
   data.splice(i, 1);
   // Auswahl/Detailansicht an den geänderten Index anpassen
   if(selected === i) selected = -1;
@@ -515,21 +562,29 @@ function deleteRow(i){
   render();
 }
 
-function startEdit(i, col, btn){
+function startEdit(i, field, btn){
   const cell = btn.closest(".time-cell");
-  const old = data[i][col];
+  const old = data[i][field];
   cell.innerHTML = `<input class="edit-input" value="${old}">`;
   const input = cell.querySelector("input");
   input.focus();
   input.select();
-  const save = ()=>{
+  let done = false;
+  const save = async ()=>{
+    if(done) return; done = true;
     const v = input.value.trim();
-    if(TIME_RE.test(v)) data[i][col] = v;
+    if(TIME_RE.test(v) && v !== old){
+      data[i][field] = v;
+      const { error } = await sb.from("lap_times")
+        .update({ [field]: v, updated_at: new Date().toISOString() })
+        .eq("id", data[i].id);
+      if(error){ alert("Speichern fehlgeschlagen:\n" + error.message); await load(); return; }
+    }
     render();
   };
   input.addEventListener("keydown", e=>{
     if(e.key === "Enter") save();
-    if(e.key === "Escape") render();
+    if(e.key === "Escape"){ done = true; render(); }
   });
   input.addEventListener("blur", save);
   input.addEventListener("click", e=>e.stopPropagation());
@@ -546,12 +601,12 @@ function selectRow(i){
 function showDetail(i){
   const detail = document.getElementById("detail");
   const r = data[i];
-  const j = toSec(r[1]), s = toSec(r[2]);
+  const j = toSec(r.joel_time), s = toSec(r.stefan_time);
   const diff = Math.abs(j - s);
   const winner = j < s ? "Joel" : (s < j ? "Stefan" : "Niemand");
   const pct = ((diff / Math.min(j,s)) * 100).toFixed(2).replace(".",",");
 
-  document.getElementById("detailTitle").textContent = r[0];
+  document.getElementById("detailTitle").textContent = r.track;
   document.getElementById("detailSub").innerHTML =
     winner === "Niemand"
       ? "Exakt gleiche Zeit."
@@ -559,7 +614,7 @@ function showDetail(i){
 
   const tJ = document.getElementById("tJoel");
   const tS = document.getElementById("tStefan");
-  tJ.textContent = r[1]; tS.textContent = r[2];
+  tJ.textContent = r.joel_time; tS.textContent = r.stefan_time;
   tJ.classList.toggle("win", j < s);
   tS.classList.toggle("win", s < j);
 
@@ -592,24 +647,80 @@ document.getElementById("addBtn").addEventListener("click", ()=>{
 document.getElementById("cancelBtn").addEventListener("click", ()=> modalBg.classList.remove("visible"));
 modalBg.addEventListener("click", e=>{ if(e.target === modalBg) modalBg.classList.remove("visible"); });
 
-document.getElementById("saveBtn").addEventListener("click", ()=>{
+document.getElementById("saveBtn").addEventListener("click", async ()=>{
   const track = document.getElementById("inTrack").value.trim();
   const tj = document.getElementById("inJoel").value.trim();
   const ts = document.getElementById("inStefan").value.trim();
   if(!track || !TIME_RE.test(tj) || !TIME_RE.test(ts)){
+    modalError.textContent = "Bitte gültige Zeiten im Format m:ss.mmm eingeben.";
     modalError.style.display = "block";
     return;
   }
-  data.push([track, tj, ts]);
+  const sort_order = data.length ? Math.max(...data.map(r=>r.sort_order)) + 1 : 0;
+  const { data: inserted, error } = await sb.from("lap_times")
+    .insert({ track, joel_time: tj, stefan_time: ts, sort_order })
+    .select()
+    .single();
+  if(error){
+    modalError.textContent = "Speichern fehlgeschlagen: " + error.message;
+    modalError.style.display = "block";
+    return;
+  }
+  data.push(inserted);
   modalBg.classList.remove("visible");
   selected = data.length - 1;
   render();
 });
+// ---------- Auth / Admin-Login ----------
+const authBtn = document.getElementById("authBtn");
+const loginBg = document.getElementById("loginBg");
+const loginError = document.getElementById("loginError");
+const inEmail = document.getElementById("inEmail");
+const inPass = document.getElementById("inPass");
+
+function setAdmin(v){
+  isAdmin = v;
+  document.body.classList.toggle("admin", v);
+  authBtn.textContent = v ? "Logout" : "Login";
+}
+
+function openLogin(){
+  loginError.style.display = "none";
+  inEmail.value = "";
+  inPass.value = "";
+  loginBg.classList.add("visible");
+  inEmail.focus();
+}
+
+async function doLogin(){
+  const email = inEmail.value.trim();
+  const password = inPass.value;
+  const { error } = await sb.auth.signInWithPassword({ email, password });
+  if(error){
+    loginError.textContent = "Login fehlgeschlagen: " + error.message;
+    loginError.style.display = "block";
+    return;
+  }
+  loginBg.classList.remove("visible");
+}
+
+authBtn.addEventListener("click", async ()=>{
+  if(isAdmin) await sb.auth.signOut();
+  else openLogin();
+});
+document.getElementById("loginCancel").addEventListener("click", ()=> loginBg.classList.remove("visible"));
+document.getElementById("loginSubmit").addEventListener("click", doLogin);
+loginBg.addEventListener("click", e=>{ if(e.target === loginBg) loginBg.classList.remove("visible"); });
+inPass.addEventListener("keydown", e=>{ if(e.key === "Enter") doLogin(); });
+
+// Auth-Status verfolgen (feuert auch beim ersten Laden mit gespeicherter Session)
+sb.auth.onAuthStateChange((_event, session)=> setAdmin(!!session));
+
 document.addEventListener("keydown", e=>{
-  if(e.key === "Escape") modalBg.classList.remove("visible");
+  if(e.key === "Escape"){ modalBg.classList.remove("visible"); loginBg.classList.remove("visible"); }
 });
 
-render();
+load();
 </script>
 </body>
 </html>
