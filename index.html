@@ -31,14 +31,37 @@ body{
   overflow-x:hidden;
 }
 
-/* ---------- Hintergrund: Streckenkurve mit Curbs ---------- */
+/* ---------- Hintergrund: Circuit-Map, Glows, Grain ---------- */
 .track-bg{
   position:fixed;
   inset:0;
   z-index:0;
   pointer-events:none;
-  opacity:.55;
+  overflow:hidden;
 }
+.track-bg::before{
+  content:"";
+  position:absolute;
+  inset:0;
+  background:
+    radial-gradient(140% 100% at 50% 50%, transparent 52%, rgba(0,0,0,.55) 100%),
+    radial-gradient(1100px 720px at 82% 8%, rgba(77,163,255,.085), transparent 62%),
+    radial-gradient(950px 660px at 8% 90%, rgba(226,61,61,.07), transparent 62%),
+    radial-gradient(640px 420px at 50% -6%, rgba(255,255,255,.045), transparent 70%);
+}
+.track-bg svg{position:absolute;inset:0;width:100%;height:100%}
+.track-bg::after{
+  content:"";
+  position:absolute;
+  inset:0;
+  background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+  background-size:160px 160px;
+  opacity:.05;
+  mix-blend-mode:overlay;
+}
+.circuit-pulse{animation:lap 18s linear infinite}
+.circuit-pulse.delayed{animation-delay:-9s}
+@keyframes lap{to{stroke-dashoffset:-100}}
 .content{
   position:relative;
   z-index:1;
@@ -354,31 +377,56 @@ tbody tr:hover .del-btn{opacity:.7}
 </head>
 <body>
 
-<!-- Hintergrund: Streckenkurve mit Curbs -->
-<svg class="track-bg" viewBox="0 0 1440 900" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-  <defs>
-    <linearGradient id="fade" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#0c0e11" stop-opacity="0"/>
-      <stop offset="1" stop-color="#0c0e11" stop-opacity="1"/>
-    </linearGradient>
-  </defs>
-  <!-- Asphalt -->
-  <path d="M -100 760 C 300 740, 520 700, 660 540 C 780 400, 760 240, 980 160 C 1160 95, 1360 110, 1560 60"
-        fill="none" stroke="#171a1f" stroke-width="150" stroke-linecap="round"/>
-  <!-- Curb aussen: rot -->
-  <path d="M -100 760 C 300 740, 520 700, 660 540 C 780 400, 760 240, 980 160 C 1160 95, 1360 110, 1560 60"
-        fill="none" stroke="#7a1f1f" stroke-width="170" stroke-linecap="round" stroke-dasharray="40 40" opacity=".45"/>
-  <!-- Curb aussen: weiss -->
-  <path d="M -100 760 C 300 740, 520 700, 660 540 C 780 400, 760 240, 980 160 C 1160 95, 1360 110, 1560 60"
-        fill="none" stroke="#6e7077" stroke-width="170" stroke-linecap="round" stroke-dasharray="40 40" stroke-dashoffset="40" opacity=".35"/>
-  <!-- Asphalt oben drauf -->
-  <path d="M -100 760 C 300 740, 520 700, 660 540 C 780 400, 760 240, 980 160 C 1160 95, 1360 110, 1560 60"
-        fill="none" stroke="#15181d" stroke-width="138" stroke-linecap="round"/>
-  <!-- Mittellinie -->
-  <path d="M -100 760 C 300 740, 520 700, 660 540 C 780 400, 760 240, 980 160 C 1160 95, 1360 110, 1560 60"
-        fill="none" stroke="#3a3f48" stroke-width="3" stroke-dasharray="26 30" opacity=".5"/>
-  <rect x="0" y="450" width="1440" height="450" fill="url(#fade)"/>
-</svg>
+<!-- Hintergrund: Circuit-Map mit Sektor-Pulsen, Glows und Grain -->
+<div class="track-bg" aria-hidden="true">
+  <svg viewBox="0 0 1440 900" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <path id="circuit" pathLength="100" d="M 430 645
+        C 600 668, 840 652, 1010 638
+        C 1130 628, 1216 596, 1238 518
+        C 1256 455, 1186 428, 1202 372
+        C 1218 316, 1316 312, 1326 250
+        C 1336 190, 1272 152, 1196 166
+        C 1118 180, 1120 256, 1038 272
+        C 956 288, 930 212, 842 206
+        C 756 200, 736 268, 648 280
+        C 562 292, 540 234, 458 246
+        C 378 258, 348 324, 376 392
+        C 402 454, 478 466, 498 524
+        C 516 578, 452 600, 408 610
+        C 372 618, 366 636, 430 645 Z"/>
+      <filter id="pulseGlow" x="-50%" y="-50%" width="200%" height="200%">
+        <feGaussianBlur stdDeviation="5"/>
+      </filter>
+    </defs>
+    <g transform="translate(-627.2,-207.6) scale(1.6)">
+      <!-- Asphaltband -->
+      <use href="#circuit" fill="none" stroke="#13161c" stroke-width="12" stroke-linejoin="round"/>
+      <!-- Streckenkontur -->
+      <use href="#circuit" fill="none" stroke="#272e3a" stroke-width="1.2" stroke-linejoin="round"/>
+      <!-- Start/Ziel -->
+      <g stroke="#6e7077" stroke-width="1.8" opacity=".55">
+        <line x1="716" y1="648" x2="716" y2="668" stroke-dasharray="2.5 2.5"/>
+        <line x1="721" y1="648" x2="721" y2="668" stroke-dasharray="2.5 2.5" stroke-dashoffset="2.5"/>
+      </g>
+      <!-- Kurvenmarken -->
+      <circle cx="1238" cy="518" r="2.2" fill="#4da3ff" opacity=".5"/>
+      <circle cx="1326" cy="250" r="2.2" fill="#e23d3d" opacity=".5"/>
+      <circle cx="376" cy="392" r="2.2" fill="#27d18a" opacity=".5"/>
+      <g font-family="'JetBrains Mono',monospace" font-size="8" fill="#434b5a" letter-spacing="1">
+        <text x="1256" y="508">T1</text>
+        <text x="1342" y="240">T4</text>
+        <text x="332" y="382">T9</text>
+        <text x="703" y="684">S/F</text>
+      </g>
+      <!-- Runden-Pulse: Joel (blau) und Stefan (rot) -->
+      <use href="#circuit" class="circuit-pulse" fill="none" stroke="#4da3ff" stroke-width="4.5" stroke-dasharray="5 95" stroke-linecap="round" filter="url(#pulseGlow)" opacity=".45"/>
+      <use href="#circuit" class="circuit-pulse" fill="none" stroke="#4da3ff" stroke-width="1.4" stroke-dasharray="5 95" stroke-linecap="round" opacity=".9"/>
+      <use href="#circuit" class="circuit-pulse delayed" fill="none" stroke="#e23d3d" stroke-width="4.5" stroke-dasharray="5 95" stroke-linecap="round" filter="url(#pulseGlow)" opacity=".45"/>
+      <use href="#circuit" class="circuit-pulse delayed" fill="none" stroke="#e23d3d" stroke-width="1.4" stroke-dasharray="5 95" stroke-linecap="round" opacity=".9"/>
+    </g>
+  </svg>
+</div>
 
 <div class="content">
   <header>
