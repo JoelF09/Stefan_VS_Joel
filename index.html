@@ -205,6 +205,21 @@ tbody tr:hover .edit-btn{opacity:.7}
   outline:none;
 }
 
+.diff-cell .diff-wrap{display:inline-flex;align-items:center;gap:6px;justify-content:flex-end}
+.del-btn{
+  background:none;
+  border:none;
+  cursor:pointer;
+  padding:3px;
+  border-radius:5px;
+  color:var(--text-dim);
+  opacity:0;
+  transition:opacity .12s,color .12s;
+  display:inline-flex;
+}
+tbody tr:hover .del-btn{opacity:.7}
+.del-btn:hover{opacity:1!important;color:var(--red)}
+
 /* ---------- Detail-Grafik ---------- */
 .detail{
   margin-top:24px;
@@ -308,7 +323,7 @@ tbody tr:hover .edit-btn{opacity:.7}
 
 @media (max-width:600px){
   thead th,tbody td{padding-left:10px;padding-right:10px}
-  .edit-btn{opacity:.5}
+  .edit-btn,.del-btn{opacity:.5}
 }
 @media (prefers-reduced-motion:reduce){
   *{animation:none!important;transition:none!important}
@@ -438,6 +453,7 @@ const tb = document.getElementById("laps");
 const statsEl = document.getElementById("stats");
 
 const pencilSVG = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>';
+const trashSVG = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2m2 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M10 11v6M14 11v6"/></svg>';
 
 function render(){
   // Stats
@@ -464,9 +480,9 @@ function render(){
       <td>${r[0]}</td>
       <td><span class="time-cell"><span class="time ${joelWins?"win":""}">${r[1]}</span><button class="edit-btn" data-i="${i}" data-c="1" title="Zeit bearbeiten">${pencilSVG}</button></span></td>
       <td><span class="time-cell"><span class="time ${!joelWins?"win":""}">${r[2]}</span><button class="edit-btn" data-i="${i}" data-c="2" title="Zeit bearbeiten">${pencilSVG}</button></span></td>
-      <td class="diff-cell">${fmtDiff(Math.abs(j-s))}</td>`;
+      <td class="diff-cell"><span class="diff-wrap">${fmtDiff(Math.abs(j-s))}<button class="del-btn" data-i="${i}" title="Strecke löschen">${trashSVG}</button></span></td>`;
     tr.addEventListener("click", e=>{
-      if(e.target.closest(".edit-btn") || e.target.closest(".edit-input")) return;
+      if(e.target.closest(".edit-btn") || e.target.closest(".edit-input") || e.target.closest(".del-btn")) return;
       selectRow(i);
     });
     tb.appendChild(tr);
@@ -479,7 +495,24 @@ function render(){
     });
   });
 
+  tb.querySelectorAll(".del-btn").forEach(btn=>{
+    btn.addEventListener("click", e=>{
+      e.stopPropagation();
+      deleteRow(parseInt(btn.dataset.i));
+    });
+  });
+
   if(selected >= 0) showDetail(selected);
+}
+
+function deleteRow(i){
+  if(!confirm(`Strecke "${data[i][0]}" wirklich löschen?`)) return;
+  data.splice(i, 1);
+  // Auswahl/Detailansicht an den geänderten Index anpassen
+  if(selected === i) selected = -1;
+  else if(selected > i) selected--;
+  document.getElementById("detail").classList.toggle("visible", selected >= 0);
+  render();
 }
 
 function startEdit(i, col, btn){
